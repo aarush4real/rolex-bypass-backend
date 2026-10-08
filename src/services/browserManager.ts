@@ -170,9 +170,13 @@ export class BrowserManager {
   private async getBrowser() {
     if (!this.browserPromise) {
       const extensionEnabled = extensionIsLoadable(this.options.extensionPath)
-      const args = extensionEnabled && this.options.extensionPath
-        ? [`--disable-extensions-except=${this.options.extensionPath}`, `--load-extension=${this.options.extensionPath}`]
-        : []
+      const args = [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        ...(extensionEnabled && this.options.extensionPath
+          ? [`--disable-extensions-except=${this.options.extensionPath}`, `--load-extension=${this.options.extensionPath}`]
+          : []),
+      ]
       this.browserPromise = chromium.launch({ headless: true, args })
     }
     return this.browserPromise

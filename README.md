@@ -93,3 +93,7 @@ EXTENSION_PATH=/app/extension
 ```
 
 The service only loads the extension when the directory exists and contains a manifest. It will otherwise run without one.
+
+## If the frontend returns to the landing page
+
+This means the WebSocket closed during session startup. Check Render logs for the browser launch error. The Dockerfile uses the Playwright image and the backend includes `--no-sandbox` and `--disable-setuid-sandbox`, which are required when Chromium runs as the container user. Also make sure `FRONTEND_ORIGIN` exactly matches the Vercel URL, with no trailing slash.
