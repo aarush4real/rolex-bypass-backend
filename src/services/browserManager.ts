@@ -19,6 +19,7 @@ export type BrowserSession = {
   lastFrameAt: number
   frameTimer?: NodeJS.Timeout
   send: (message: Record<string, unknown>) => void
+  sendBinary: (buffer: Buffer) => void
   close: () => Promise<void>
 }
 
@@ -27,6 +28,7 @@ type BrowserManagerOptions = {
   extensionPath?: string
   viewport: { width: number; height: number }
   frameIntervalMs: number
+  jpegQuality: number
   sessionTtlMs: number
 }
 
@@ -61,7 +63,7 @@ export class BrowserManager {
     return this.sessions.size
   }
 
-  async createSession(token: string, send: BrowserSession['send']): Promise<BrowserSession> {
+  async createSession(token: string, send: BrowserSession['send'], sendBinary: BrowserSession['sendBinary']): Promise<BrowserSession> {
     const browser = await this.getBrowser()
     const extensionEnabled = extensionIsLoadable(this.options.extensionPath)
     const args = extensionEnabled && this.options.extensionPath
@@ -80,6 +82,7 @@ export class BrowserManager {
       createdAt: Date.now(),
       lastFrameAt: 0,
       send,
+      sendBinary,
       close: async () => this.closeSession(id),
     }
 
@@ -159,12 +162,17 @@ export class BrowserManager {
 
   private startFrameLoop(session: BrowserSession, extensionEnabled: boolean): void {
     session.send({ type: 'ready', sessionId: session.id, targetOrigin: this.options.targetOrigin, extensionEnabled })
-    session.frameTimer = setInterval(() => {
-      void session.page.screenshot({ type: 'jpeg', quality: 65 }).then((buffer) => {
+    const capture = async () => {
+      try {
+        const buffer = await session.page.screenshot({ type: 'jpeg', quality: this.options.jpegQuality, animations: 'disabled' })
         session.lastFrameAt = Date.now()
-        session.send({ type: 'frame', mime: 'image/jpeg', width: this.options.viewport.width, height: this.options.viewport.height, data: buffer.toString('base64') })
-      }).catch((error: unknown) => session.send({ type: 'error', message: error instanceof Error ? error.message : 'Frame capture failed' }))
-    }, this.options.frameIntervalMs)
+        session.sendBinary(buffer)
+      } catch (error: unknown) {
+        session.send({ type: 'error', message: error instanceof Error ? error.message : 'Frame capture failed' })
+      }
+      if (this.sessions.has(session.id)) session.frameTimer = setTimeout(() => void capture(), this.options.frameIntervalMs)
+    }
+    void capture()
   }
 
   private async getBrowser() {

@@ -13,6 +13,8 @@ const sessionSecret = process.env.SESSION_SECRET || 'local-development-only-chan
 const maxSessions = Math.max(1, Number(process.env.MAX_SESSIONS || 1))
 const sessionTtlMs = Math.max(60_000, Number(process.env.SESSION_TTL_MS || 1_800_000))
 const viewport = { width: Number(process.env.VIEWPORT_WIDTH || 1280), height: Number(process.env.VIEWPORT_HEIGHT || 720) }
+const frameIntervalMs = Math.max(120, Number(process.env.FRAME_INTERVAL_MS || 160))
+const jpegQuality = Math.min(92, Math.max(70, Number(process.env.JPEG_QUALITY || 82)))
 
 const app = express()
 app.disable('x-powered-by')
@@ -23,7 +25,8 @@ const manager = new BrowserManager({
   targetOrigin,
   extensionPath: process.env.EXTENSION_PATH || undefined,
   viewport,
-  frameIntervalMs: Math.max(250, Number(process.env.FRAME_INTERVAL_MS || 500)),
+  frameIntervalMs,
+  jpegQuality,
   sessionTtlMs,
 })
 
@@ -94,7 +97,8 @@ wss.on('connection', async (ws: WebSocket, _request: http.IncomingMessage, token
   let session: BrowserSession | undefined
   const send = (message: Record<string, unknown>) => { if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(message)) }
   try {
-    session = await manager.createSession(token, send)
+    const sendBinary = (buffer: Buffer) => { if (ws.readyState === ws.OPEN) ws.send(buffer) }
+    session = await manager.createSession(token, send, sendBinary)
     const ttlTimer = setTimeout(() => { send({ type: 'closed', reason: 'session_ttl_expired' }); void ws.close() }, sessionTtlMs)
     ws.on('message', (payload) => {
       try {
