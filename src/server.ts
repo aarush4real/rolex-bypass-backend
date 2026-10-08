@@ -67,6 +67,10 @@ app.get('/health', (_request, response) => {
   response.json({ ok: true, service: 'virtual-web-session-backend', activeSessions: manager.activeCount })
 })
 
+app.get('/', (_request, response) => {
+  response.json({ ok: true, service: 'virtual-web-session-backend', health: '/health', websocket: '/ws' })
+})
+
 app.post('/session', (_request, response) => {
   if (manager.activeCount >= maxSessions) {
     response.status(429).json({ error: 'session_limit_reached' })
